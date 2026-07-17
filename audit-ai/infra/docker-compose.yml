@@ -52,6 +52,20 @@ services:
       - ./backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+  frontend:
+    build: ./frontend
+    container_name: audit-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    environment:
+      - VITE_PORT=3000
+    depends_on:
+      - backend
+
 volumes:
   pgdata:
   qdrant_storage:
