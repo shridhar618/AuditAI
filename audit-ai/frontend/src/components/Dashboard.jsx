@@ -16,7 +16,7 @@ const Dashboard = () => {
     try {
       // For demo purposes, we'll audit transaction ID 1
       // In a real app, you might want to select or run on latest
-      const auditResponse = await axios.post(`/audit/1`);
+      const auditResponse = await axios.post(`/api/audit/1`);
       // Refresh findings after audit
       loadFindings();
     } catch (err) {
@@ -28,7 +28,7 @@ const Dashboard = () => {
 
   const loadFindings = async () => {
     try {
-      const response = await axios.get(`/findings`);
+      const response = await axios.get(`/api/findings`);
       setFindings(response.data);
       if (response.data.length > 0) {
         setLatestFinding(response.data[0]); // Most recent due to ordering

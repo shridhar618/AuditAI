@@ -10,7 +10,7 @@ const TransactionsTable = () => {
   const loadTransactions = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`/transactions`);
+      const response = await axios.get(`/api/transactions`);
       setTransactions(response.data.transaction_ids || []);
     } catch (err) {
       setError('Failed to load transactions: ' + (err.response?.data?.detail || err.message));
