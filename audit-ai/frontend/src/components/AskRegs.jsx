@@ -26,7 +26,7 @@ const AskRegs = () => {
     setRegulation(null);
 
     try {
-      const response = await axios.post(`/ask`, { query: question });
+      const response = await axios.post(`/api/ask`, { query: question });
       setAnswer(response.data.answer);
       setRegulation({
         id: response.data.regulation_id,

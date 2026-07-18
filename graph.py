@@ -273,6 +273,7 @@ app_graph = build_graph()
 
 # -------------------------- FastAPI App --------------------------
 from fastapi import FastAPI, HTTPException, Query
+from starlette.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from typing import List as TypingList
 
@@ -294,7 +295,7 @@ def _finding_to_dict(f: Finding) -> dict:
     }
 
 
-@app.post("/audit/{transaction_id}")
+@app.post("/api/audit/{transaction_id}")
 async def audit_transaction(transaction_id: int):
     """
     Run the full audit pipeline for a given transaction ID.
@@ -320,7 +321,7 @@ async def audit_transaction(transaction_id: int):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.get("/findings")
+@app.get("/api/findings")
 def list_findings(severity: Optional[str] = Query(None, description="Filter by severity: low, medium, high")):
     """
     List all audit findings, optionally filtered by severity.
@@ -346,7 +347,7 @@ def list_findings(severity: Optional[str] = Query(None, description="Filter by s
         return [_finding_to_dict(r) for r in results]
 
 
-@app.get("/findings/{finding_id}")
+@app.get("/api/findings/{finding_id}")
 def get_finding(finding_id: int):
     """
     Retrieve a single finding by its ID, including the citation (regulation_id/text).
@@ -358,7 +359,7 @@ def get_finding(finding_id: int):
         return _finding_to_dict(finding)
 
 
-@app.get("/transactions")
+@app.get("/api/transactions")
 def list_transactions(limit: int = Query(100, description="Maximum number of transaction IDs to return")):
     """
     Return a list of transaction IDs (useful for the frontend to pick a target).
@@ -369,7 +370,7 @@ def list_transactions(limit: int = Query(100, description="Maximum number of tra
         return {"transaction_ids": ids}
 
 
-@app.post("/ask")
+@app.post("/api/ask")
 async def ask_question(payload: dict):
     """
     Direct RAG endpoint used by the Ask the Regs page.
@@ -408,15 +409,43 @@ Answer:"""
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# Serve static frontend files (built with Vite)
+# Serve static files and SPA fallback
 frontend_dist_path = os.path.join(os.path.dirname(__file__), "audit-ai", "frontend", "dist")
 if os.path.isdir(frontend_dist_path):
-    app.mount("/", StaticFiles(directory=frontend_dist_path, html=True), name="static")
+    # Mount the assets directory for JS, CSS, etc.
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist_path, "assets")), name="assets")
+    # Catch-all for SPA: serve index.html for any non-API, non-static asset request
+    @app.get("/{full_path:path}")
+    async def spa(full_path: str):
+        # If the path starts with "api/" or "assets/", we should not be here because the API routes and asset mount would have matched it.
+        # But to be safe, we return 404 for these.
+        if full_path.startswith("api/") or full_path.startswith("assets/"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        # We want to serve the file if it exists in the dist directory, otherwise index.html.
+        # We remove any leading slash from full_path (though the route should not include it) and join with the base directory.
+        # We also need to avoid directory traversal.
+        base_dir = os.path.abspath(frontend_dist_path)
+        # Normalize the path by removing any leading slashes (though the route should not have them)
+        if full_path.startswith("/"):
+            # This should not happen, but if it does, remove the leading slash.
+            relative_path = full_path.lstrip("/")
+        else:
+            relative_path = full_path
+        file_path = os.path.join(base_dir, relative_path)
+        # Normalize the path to remove any '..' or '.' and to avoid directory traversal
+        file_path = os.path.normpath(file_path)
+        # Check if the file_path is within the base_dir
+        if not file_path.startswith(base_dir):
+            # For safety, if it's not, we serve index.html
+            return FileResponse(os.path.join(base_dir, "index.html"))
+        # Check if it is a file and not a directory
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        # Otherwise, serve index.html
+        return FileResponse(os.path.join(base_dir, "index.html"))
 else:
     # If the dist folder does not exist yet, we can still run the API; frontend will need to be served separately.
     pass
-
-
 # Optional: allow running with `python graph.py` for quick dev
 if __name__ == "__main__":
     import uvicorn
