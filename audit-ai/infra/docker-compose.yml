@@ -28,41 +28,35 @@ services:
     environment:
       - QDRANT__SERVICE__GRPC_PORT=50051
       - QDRANT__SERVICE__HTTP_PORT=6333
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
 
   backend:
-    build: ./backend
+    build: ../backend
     container_name: audit-backend
     ports:
       - "8000:8000"
     depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_healthy
+      - postgres
+      - qdrant
     environment:
       - DATABASE_URL=postgresql+psycopg2://audit_user:audit_pass@postgres:5432/audit_db
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
     volumes:
-      - ./backend:/app
+      - ../backend:/app
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
   frontend:
-    build: ./frontend
+    build: ../frontend
     container_name: audit-frontend
     ports:
       - "3000:3000"
     volumes:
-      - ./frontend:/app
+      - ../frontend:/app
       - /app/node_modules
-    command: npm run dev
+    command: npm run dev -- --host 0.0.0.0
     environment:
       - VITE_PORT=3000
+      - VITE_API_TARGET=http://backend:8000
     depends_on:
       - backend
 

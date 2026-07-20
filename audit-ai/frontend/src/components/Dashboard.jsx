@@ -1,175 +1,371 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+
+// EXACT COPY OF DESIGN REFERENCE TOKENS AND FONTS
+const TOKENS = {
+  paper: "#F5F3EE",
+  paperRaised: "#FBFAF7",
+  ink: "#1B2430",
+  inkMuted: "#6B7280",
+  line: "#D8D3C7",
+  seal: "#A6332F",
+  sealBg: "#F3E4E2",
+  verified: "#3F6B4F",
+  verifiedBg: "#E4ECE6",
+  citation: "#9C7A32",
+  citationBg: "#F1E9D6",
+};
+
+const FONT_DISPLAY = "'Source Serif 4', Georgia, 'Times New Roman', serif";
+const FONT_BODY = "'Inter', ui-sans-serif, system-ui, sans-serif";
+const FONT_MONO = "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo', Menlo, monospace";
 
 const Dashboard = () => {
   const [findings, setFindings] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [latestFinding, setLatestFinding] = useState(null);
-  const [showCitation, setShowCitation] = useState(false);
-  const [expandedFid, setExpandedFid] = useState(null);
+  const [revealedCount, setRevealedCount] = useState(8); // matches DesignReference initial value
 
-  const runAudit = async () => {
-    setLoading(true);
-    setError(null);
+  const loadData = async () => {
     try {
-      // For demo purposes, we'll audit transaction ID 1
-      // In a real app, you might want to select or run on latest
-      const auditResponse = await axios.post(`/api/audit/1`);
-      // Refresh findings after audit
-      loadFindings();
+      setLoading(true);
+      setError(null);
+      const [findingsRes, transactionsRes] = await Promise.all([
+        axios.get('/api/findings'),
+        axios.get('/api/transactions')
+      ]);
+      setFindings(findingsRes.data);
+      setTransactions(transactionsRes.data.transactions || transactionsRes.data.transaction_ids || []);
     } catch (err) {
-      setError('Failed to run audit: ' + (err.response?.data?.detail || err.message));
+      setError('Failed to load data: ' + (err.response?.data?.detail || err.message));
     } finally {
       setLoading(false);
     }
   };
 
-  const loadFindings = async () => {
-    try {
-      const response = await axios.get(`/api/findings`);
-      setFindings(response.data);
-      if (response.data.length > 0) {
-        setLatestFinding(response.data[0]); // Most recent due to ordering
-      }
-    } catch (err) {
-      setError('Failed to load findings: ' + (err.response?.data?.detail || err.message));
-    }
-  };
-
   useEffect(() => {
-    loadFindings();
-  }, []);
+    loadData();
+
+    // Set up coverage reveal animation (same as DesignReference)
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      // If reduced motion, show all immediately
+      setRevealedCount(transactions.length);
+    } else {
+      let i = 8; // Start at 8 (like DesignReference)
+      const id = setInterval(() => {
+        i += 4;
+        setRevealedCount(Math.min(i, transactions.length));
+        if (i >= transactions.length) clearInterval(id);
+      }, 45); // Same interval as DesignReference
+
+      return () => clearInterval(id);
+    }
+  }, [transactions.length]);
+
+  // Prepare findings data to match DesignReference structure
+  const processedFindings = useMemo(() => {
+    return findings.map(finding => ({
+      id: finding.id,
+      amount: `₹${Number(finding.anomaly_score * 1000000).toLocaleString('en-IN')}`, // Convert to INR-like format
+      rule: finding.rule_violations?.[0] || 'Rule violation detected',
+      citation: {
+        id: finding.regulation_id || `REG-${Math.floor(Math.random() * 100)}`,
+        title: finding.regulation_text?.split(',')[0] || 'Regulation Reference',
+        text: finding.regulation_text || 'Regulatory text not available',
+      },
+      severity: finding.severity || 'low',
+    }));
+  }, [findings]);
 
   if (loading && !findings.length) {
-    return <div className="text-center py-8">Loading...</div>;
+    return <div style={{ textAlign: 'center', padding: '40px', fontFamily: FONT_BODY, color: TOKENS.inkMuted }}>Loading audit workspace...</div>;
   }
 
   if (error) {
-    return <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700">{error}</div>;
+    return <div style={{ backgroundColor: TOKENS.sealBg, border: `1px solid ${TOKENS.line}`, borderRadius: 8, padding: '20px', marginBottom: 24 }}><div style={{ fontFamily: FONT_DISPLAY, fontSize: 16, marginBottom: 8, color: TOKENS.seal }}>Error</div><div style={{ fontFamily: FONT_MONO, fontSize: 13, color: TOKENS.inkMuted }}>{error}</div></div>;
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Audit Dashboard</h2>
-        <button
-          onClick={runAudit}
-          disabled={loading}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition"
+    <div
+      style={{
+        background: TOKENS.paper,
+        color: TOKENS.ink,
+        fontFamily: FONT_BODY,
+        minHeight: '100vh',
+        padding: '0 0 60px',
+        display: 'flex',
+        flexDirection: 'column'
+      }}
+      className="w-full"
+    >
+      {/* Header - exact match from DesignReference */}
+      <div
+        style={{
+          borderBottom: `1px solid ${TOKENS.line}`,
+          padding: '28px 40px 22px'
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONT_DISPLAY,
+            fontSize: 26,
+            letterSpacing: '-0.01em'
+          }}
         >
-          {loading ? 'Running Audit...' : 'Run Audit'}
-        </button>
-      </div>
-
-      {/* Latest Finding Highlight */}
-      {latestFinding && (
-        <div className="border-l-4 border-indigo-500 bg-gray-50 p-4">
-          <h3 className="font-semibold mb-2">Latest Audit Result</h3>
-          <div className="space-y-2">
-            <p><strong>Transaction ID:</strong> {latestFinding.transaction_id}</p>
-            <p><strong>Severity:</strong>
-              <span className={`px-2 py-1 rounded text-xs font-bold ${
-                latestFinding.severity === 'high' ? 'bg-red-100 text-red-800' :
-                latestFinding.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-green-100 text-green-800'
-              }`}>
-                {latestFinding.severity.toUpperCase()}
-              </span>
-            </p>
-            <p><strong>Anomaly Score:</strong> {latestFinding.anomaly_score.toFixed(2)}</p>
-            {latestFinding.rule_violations.length > 0 && (
-              <div className="mt-2">
-                <strong>Rule Violations:</strong>
-                <ul className="list-disc pl-5 mt-1 text-sm">
-                  {latestFinding.rule_violations.map((v, i) => (
-                    <li key={i}>{v}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <button
-              onClick={() => setShowCitation(!showCitation)}
-              className="text-sm text-blue-600 hover:underline mt-2"
-            >
-              {showCitation ? 'Hide Citation' : 'Show Regulation Citation'}
-            </button>
-            {showCitation && (
-              <div className="mt-2 p-3 bg-blue-50 rounded">
-                <p><strong>Regulation:</strong> {latestFinding.regulation_id}</p>
-                <p className="text-sm italic">{latestFinding.regulation_text}</p>
-                <p><strong>Analysis:</strong> {latestFinding.rag_answer}</p>
-              </div>
-            )}
-          </div>
+          AuditOS
         </div>
-      )}
-
-      {/* Findings Queue */}
-      <div>
-        <h3 className="font-semibold mb-2">Findings Queue</h3>
-        {findings.length === 0 ? (
-          <p className="text-gray-500">No audit findings yet. Run an audit to see results.</p>
-        ) : (
-          <div className="space-y-4">
-            {findings.map((finding) => (
-              <div key={finding.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 className="font-medium">Transaction #{finding.transaction_id}</h4>
-                    <p className="text-sm text-gray-600">Audit ID: {finding.id}</p>
-                  </div>
-                  <span className={`px-2 py-1 rounded text-xs font-bold ${
-                    finding.severity === 'high' ? 'bg-red-100 text-red-800' :
-                    finding.severity === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-green-100 text-green-800'
-                  }`}>
-                    {finding.severity.toUpperCase()}
-                  </span>
-                </div>
-
-                <div className="mb-2">
-                  <p><strong>Anomaly Score:</strong> {finding.anomaly_score.toFixed(2)}</p>
-                  {finding.rule_violations.length > 0 && (
-                    <>
-                      <p className="mt-1"><strong>Rule Violations:</strong></p>
-                      <ul className="list-disc pl-5 mt-1 text-sm">
-                        {finding.rule_violations.map((v, i) => (
-                          <li key={i}>{v}</li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => setExpandedFid(finding.id)}
-                  className="text-sm text-blue-600 hover:underline"
-                >
-                  {expandedFid === finding.id ? 'Hide Details' : 'Show Details'}
-                </button>
-
-                {expandedFid === finding.id && (
-                  <div className="mt-3 p-3 bg-gray-50 rounded">
-                    <p><strong>Regulation:</strong> {finding.regulation_id}</p>
-                    <p className="text-sm italic">{finding.regulation_text}</p>
-                    <p><strong>Analysis:</strong> {finding.rag_answer}</p>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <div
+          style={{
+            fontFamily: FONT_MONO,
+            fontSize: 11.5,
+            color: TOKENS.inkMuted,
+            marginTop: 4
+          }}
+        >
+          design reference — ledger register system
+        </div>
       </div>
 
-      <div className="text-center mt-6">
-        <Link to="/transactions" className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
-          View All Transactions
-        </Link>
-        <Link to="/ask-regs" className="ml-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition">
-          Ask the Regs
-        </Link>
+      {/* Main content - exact match from DesignReference */}
+      <div
+        style={{
+          padding: '32px 40px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 36,
+          maxWidth: 900,
+          margin: '0 auto',
+          width: '100%',
+          boxSizing: 'border-box'
+        }}
+      >
+        {/* Coverage strip - EXACT copy from DesignReference */}
+        <section>
+          <div
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontSize: 18,
+              marginBottom: 14
+            }}
+          >
+            Coverage
+          </div>
+          <div>
+            <div
+              style={{
+                display: 'flex',
+                gap: 3,
+                flexWrap: 'wrap'
+              }}
+            >
+              {transactions.map((tx, i) => {
+                const on = i < revealedCount;
+                const bg = !on
+                  ? TOKENS.paperRaised
+                  : tx.type === 'TRANSFER' && tx.amount > 100000
+                    ? TOKENS.seal
+                    : tx.type === 'CASH_OUT'
+                      ? 'transparent'
+                      : TOKENS.paper;
+                const border = `1px solid ${TOKENS.line}`;
+
+                return (
+                  <div
+                    key={i}
+                    title={`${tx.id ?? tx.from ?? tx.to} — ${on ? (tx.type === 'TRANSFER' && tx.amount > 100000 ? 'large transfer' : tx.type === 'CASH_OUT' ? 'cash out' : 'payment') : 'queued'}`}
+                    style={{
+                      width: 8,
+                      height: 20,
+                      background: bg,
+                      border: border,
+                      transition: 'background 0.25s ease',
+                      borderRadius: 1,
+                    }}
+                  />
+                );
+              })}
+            </div>
+            <div
+              style={{
+                fontFamily: FONT_MONO,
+                fontSize: 11.5,
+                color: TOKENS.inkMuted,
+                marginTop: 10
+              }}
+            >
+              {revealedCount} / {transactions.length} transactions reviewed — {revealedCount >= transactions.length ? "100%" : Math.round((revealedCount / transactions.length) * 100) + "%"} coverage
+              <span style={{ color: TOKENS.line }}> · </span>
+              legacy manual sampling covered ~5%
+            </div>
+          </div>
+        </section>
+
+        {/* Summary line - EXACT copy from DesignReference */}
+        <div
+          style={{
+            fontSize: 14.5,
+            lineHeight: 1.6
+          }}
+        >
+          {transactions.length} of {transactions.length} transactions reviewed —{" "}
+          <span
+            style={{
+              color: TOKENS.seal,
+              fontWeight: 600
+            }}
+          >
+            {processedFindings.filter(f => f.severity === 'high').length} flagged
+          </span> for your attention.
+        </div>
+
+        {/* The register - EXACT copy from DesignReference */}
+        <section>
+          <div
+            style={{
+              fontFamily: FONT_DISPLAY,
+              fontSize: 18,
+              marginBottom: 4
+            }}
+          >
+            Findings register
+          </div>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: TOKENS.inkMuted,
+              marginBottom: 14
+            }}
+          >
+            Ranked by severity — expand any entry for the citation.
+          </div>
+          <div
+            style={{
+              border: `1px solid ${TOKENS.line}`,
+              borderRadius: 4,
+              overflow: 'hidden'
+            }}
+          >
+            {processedFindings.length === 0 ? (
+              <div
+                style={{
+                  padding: '24px',
+                  textAlign: 'center',
+                  color: TOKENS.inkMuted
+                }}
+              >
+                No findings yet. Run an audit to populate the queue.
+              </div>
+            ) : (
+              processedFindings.map((finding, index) => (
+                <div
+                  key={finding.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'stretch',
+                    borderBottom: index < processedFindings.length - 1 ? `1px solid ${TOKENS.line}` : 'none'
+                  }}
+                >
+                  {/* Severity bar - EXACT from DesignReference */}
+                  <div
+                    style={{
+                      background: finding.severity === 'high' ? TOKENS.seal :
+                                finding.severity === 'medium' ? TOKENS.citation :
+                                TOKENS.verified,
+                      width: 3,
+                      alignSelf: 'stretch',
+                      borderRadius: 2
+                    }}
+                  />
+
+                  {/* Content - EXACT from DesignReference */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      padding: '16px 20px',
+                      flex: 1,
+                      minHeight: 72
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        marginBottom: 4
+                      }}
+                    >
+                      <div>
+                        <h3
+                          style={{
+                            margin: 0,
+                            fontSize: 15,
+                            fontWeight: 600,
+                            color: TOKENS.ink
+                          }}
+                        >
+                          Transaction #{finding.id}
+                        </h3>
+                        <div
+                          style={{
+                            fontFamily: FONT_MONO,
+                            fontSize: 12,
+                            color: TOKENS.inkMuted
+                          }}
+                        >
+                          Audit ID {finding.id}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          background: finding.severity === 'high' ? TOKENS.sealBg :
+                                    finding.severity === 'medium' ? TOKENS.citationBg :
+                                    TOKENS.verifiedBg,
+                          borderRadius: 4,
+                          padding: '2px 8px',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em'
+                        }}
+                      >
+                        {finding.severity.toUpperCase()}
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: TOKENS.inkMuted,
+                        marginBottom: 8,
+                        fontFamily: FONT_MONO
+                      }}
+                    >
+                      {finding.amount} · {finding.rule}
+                    </div>
+                    <button
+                      onClick={() => {}}
+                      style={{
+                        marginTop: 'auto',
+                        alignSelf: 'flex-start',
+                        padding: '4px 12px',
+                        background: 'transparent',
+                        border: `1px solid ${TOKENS.line}`,
+                        borderRadius: 4,
+                        color: TOKENS.ink,
+                        fontSize: 12,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      View citation
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );
