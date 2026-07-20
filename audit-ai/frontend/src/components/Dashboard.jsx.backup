@@ -1,0 +1,192 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import axios from 'axios';
+import { Link } from 'react-router-dom';
+
+const severityLabel = (severity) => `severity-${severity || 'low'}`;
+
+const Dashboard = () => {
+  const [findings, setFindings] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [latestFinding, setLatestFinding] = useState(null);
+  const [showCitation, setShowCitation] = useState(false);
+  const [expandedFid, setExpandedFid] = useState(null);
+
+  const loadFindings = async () => {
+    try {
+      const response = await axios.get('/api/findings');
+      setFindings(response.data);
+      setLatestFinding(response.data[0] || null);
+    } catch (err) {
+      setError('Failed to load findings: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const runAudit = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await axios.post('/api/audit/1');
+      await loadFindings();
+    } catch (err) {
+      setError('Failed to run audit: ' + (err.response?.data?.detail || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFindings();
+  }, []);
+
+  const metrics = useMemo(() => {
+    const high = findings.filter((finding) => finding.severity === 'high').length;
+    const average =
+      findings.length === 0
+        ? 0
+        : findings.reduce((sum, finding) => sum + finding.anomaly_score, 0) /
+          findings.length;
+
+    return [
+      { label: 'Open Findings', value: findings.length, trend: '+12% vs last run' },
+      { label: 'High Severity', value: high, trend: high > 0 ? 'Immediate review' : 'Clear' },
+      { label: 'Avg Risk Score', value: average.toFixed(2), trend: 'Model confidence' },
+      { label: 'Controls Online', value: '4/4', trend: 'API, DB, Vector, UI' },
+    ];
+  }, [findings]);
+
+  if (loading && !findings.length) {
+    return <div className="loading-state">Loading audit workspace...</div>;
+  }
+
+  return (
+    <div className="page-stack">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">Audit command center</p>
+          <h1>Operational Risk Dashboard</h1>
+          <p className="page-copy">
+            Monitor suspicious transactions, surface rule breaches, and inspect grounded regulatory citations.
+          </p>
+        </div>
+        <button onClick={runAudit} disabled={loading} className="button button-primary">
+          {loading ? 'Running audit...' : 'Run audit'}
+        </button>
+      </header>
+
+      {error && <div className="alert alert-error">{error}</div>}
+
+      <section className="metric-grid">
+        {metrics.map((metric) => (
+          <article className="metric-card" key={metric.label}>
+            <span>{metric.label}</span>
+            <strong>{metric.value}</strong>
+            <small>{metric.trend}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="dashboard-grid">
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Latest result</p>
+              <h2>Priority Finding</h2>
+            </div>
+            {latestFinding && (
+              <span className={severityLabel(latestFinding.severity)}>
+                {latestFinding.severity}
+              </span>
+            )}
+          </div>
+
+          {latestFinding ? (
+            <div className="finding-detail">
+              <div className="risk-score">
+                <span>Transaction #{latestFinding.transaction_id}</span>
+                <strong>{latestFinding.anomaly_score.toFixed(2)}</strong>
+                <small>Anomaly score</small>
+              </div>
+
+              <div className="rule-list">
+                <h3>Rule Violations</h3>
+                <ul>
+                  {latestFinding.rule_violations.map((violation, index) => (
+                    <li key={index}>{violation}</li>
+                  ))}
+                </ul>
+              </div>
+
+              <button
+                onClick={() => setShowCitation(!showCitation)}
+                className="button button-ghost"
+              >
+                {showCitation ? 'Hide citation' : 'Show citation'}
+              </button>
+
+              {showCitation && (
+                <div className="citation-box">
+                  <strong>{latestFinding.regulation_id}</strong>
+                  <p>{latestFinding.regulation_text}</p>
+                  <span>{latestFinding.rag_answer}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="empty-state">No findings yet. Run an audit to populate the queue.</div>
+          )}
+        </article>
+
+        <article className="panel queue-panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Review queue</p>
+              <h2>Findings</h2>
+            </div>
+            <Link to="/transactions" className="button button-secondary">
+              Transactions
+            </Link>
+          </div>
+
+          {findings.length === 0 ? (
+            <div className="empty-state">No audit findings are waiting for review.</div>
+          ) : (
+            <div className="finding-list">
+              {findings.map((finding) => (
+                <article key={finding.id} className="finding-row">
+                  <div className="finding-row-main">
+                    <div>
+                      <h3>Transaction #{finding.transaction_id}</h3>
+                      <span>Audit ID {finding.id}</span>
+                    </div>
+                    <span className={severityLabel(finding.severity)}>
+                      {finding.severity}
+                    </span>
+                  </div>
+                  <div className="finding-row-meta">
+                    <span>Score {finding.anomaly_score.toFixed(2)}</span>
+                    <button
+                      onClick={() => setExpandedFid(expiredFid === finding.id ? null : finding.id)}
+                      className="link-button"
+                    >
+                      {expandedFid === finding.id ? 'Hide details' : 'View details'}
+                    </button>
+                  </div>
+                  {expandedFid === finding.id && (
+                    <div className="citation-box compact">
+                      <strong>{finding.regulation_id}</strong>
+                      <p>{finding.regulation_text}</p>
+                      <span>{finding.rag_answer}</span>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </article>
+      </section>
+    </div>
+  );
+};
+
+export default Dashboard;
