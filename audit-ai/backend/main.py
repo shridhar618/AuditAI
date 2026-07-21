@@ -1,7 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 import uvicorn
 from datetime import datetime
+import csv
+import io
 
 app = FastAPI()
 
@@ -10,7 +12,8 @@ class AskRequest(BaseModel):
     query: str
 
 
-SAMPLE_TRANSACTIONS = [
+# Initialize with sample transactions
+transactions = [
     {"id": 1, "step": 1, "type": "TRANSFER", "amount": 125000.00, "from": "C100001", "to": "C200014"},
     {"id": 2, "step": 1, "type": "CASH_OUT", "amount": 9800.50, "from": "C100002", "to": "M348921"},
     {"id": 3, "step": 2, "type": "PAYMENT", "amount": 430.20, "from": "C100003", "to": "M983402"},
@@ -40,6 +43,27 @@ findings = [
     }
 ]
 
+
+def parse_paysim_csv(csv_content: str):
+    """Convert PaySim CSV format to internal transaction format."""
+    # Parse CSV
+    reader = csv.DictReader(io.StringIO(csv_content))
+    parsed_transactions = []
+
+    for row in reader:
+        # Convert to internal format
+        transaction = {
+            "step": int(row["step"]),
+            "type": row["type"],
+            "amount": float(row["amount"]),
+            "from": row["nameOrig"],
+            "to": row["nameDest"],
+        }
+        parsed_transactions.append(transaction)
+
+    return parsed_transactions
+
+
 @app.get("/health")
 def health_check():
     return {
@@ -52,8 +76,37 @@ def health_check():
 @app.get("/api/transactions")
 def list_transactions():
     return {
-        "transaction_ids": [transaction["id"] for transaction in SAMPLE_TRANSACTIONS],
-        "transactions": SAMPLE_TRANSACTIONS,
+        "transaction_ids": [transaction["id"] for transaction in transactions],
+        "transactions": transactions,
+    }
+
+
+@app.post("/api/upload-transactions")
+async def upload_transactions(file: UploadFile = File(...)):
+    # Read file content
+    content = await file.read()
+    csv_content = content.decode("utf-8")
+
+    # Parse CSV
+    new_transactions = parse_paysim_csv(csv_content)
+
+    # Assign IDs and add to transactions
+    start_id = len(transactions) + 1
+    for i, txn in enumerate(new_transactions):
+        txn_with_id = {
+            "id": start_id + i,
+            "step": txn["step"],
+            "type": txn["type"],
+            "amount": txn["amount"],
+            "from": txn["from"],
+            "to": txn["to"],
+        }
+        transactions.append(txn_with_id)
+
+    return {
+        "message": f"Successfully uploaded {len(new_transactions)} transactions",
+        "uploaded_count": len(new_transactions),
+        "total_transactions": len(transactions),
     }
 
 
@@ -64,7 +117,7 @@ def list_findings():
 
 @app.post("/api/audit/{transaction_id}")
 def run_audit(transaction_id: int):
-    transaction = next((item for item in SAMPLE_TRANSACTIONS if item["id"] == transaction_id), None)
+    transaction = next((item for item in transactions if item["id"] == transaction_id), None)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
@@ -116,6 +169,7 @@ def ask_regulations(request: AskRequest):
         "regulation_text": regulation_text,
         "score": 0.87,
     }
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
