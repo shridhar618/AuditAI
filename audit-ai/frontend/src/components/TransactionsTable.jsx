@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 
@@ -25,6 +25,9 @@ const TransactionsTable = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [uploadStatus, setUploadStatus] = useState(null); // null, 'loading', 'success', 'error'
+  const [uploadError, setUploadError] = useState(null);
+  const fileInputRef = useRef(null);
 
   const loadTransactions = async () => {
     try {
@@ -51,6 +54,32 @@ const TransactionsTable = () => {
   useEffect(() => {
     loadTransactions();
   }, []);
+
+  const handleFileUpload = async (file) => {
+    if (!file) return;
+    setUploadStatus('loading');
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await axios.post('/api/upload-transactions', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      setUploadStatus('success');
+      setUploadError(null);
+      // Reload transactions to reflect the newly uploaded data
+      loadTransactions();
+    } catch (err) {
+      setUploadStatus('error');
+      setUploadError(
+        err.response?.data?.detail || err.message || 'Unknown error during upload'
+      );
+      // Still reload transactions in case of partial success or to refresh state
+      loadTransactions();
+    }
+  };
 
   if (loading && !transactions.length) {
     return (
@@ -161,29 +190,104 @@ const TransactionsTable = () => {
           >
             Transaction Ledger
           </div>
-          <Link
-            to="/ask-regs"
+          <div
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 16px',
-              backgroundColor: TOKENS.seal,
-              color: '#fff',
-              fontFamily: FONT_MONO,
-              fontSize: 12,
-              fontWeight: 600,
-              textDecoration: 'none',
-              borderRadius: 4,
-              border: `1px solid ${TOKENS.line}`,
-              transition: 'background-color 0.2s ease'
+              display: 'flex',
+              gap: 16,
+              alignItems: 'center'
             }}
-            onMouseEnter={(e) => { e.target.style.backgroundColor = '#8f4342'; }}
-            onMouseLeave={(e) => { e.target.style.backgroundColor = TOKENS.seal; }}
           >
-            Ask a Regulatory Question
-          </Link>
+            <Link
+              to="/ask-regs"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '8px 16px',
+                backgroundColor: TOKENS.seal,
+                color: '#fff',
+                fontFamily: FONT_MONO,
+                fontSize: 12,
+                fontWeight: 600,
+                textDecoration: 'none',
+                borderRadius: 4,
+                border: `1px solid ${TOKENS.line}`,
+                transition: 'background-color 0.2s ease'
+              }}
+              onMouseEnter={(e) => { e.target.style.backgroundColor = '#8f4342'; }}
+              onMouseLeave={(e) => { e.target.style.backgroundColor = TOKENS.seal; }}
+            >
+              Ask a Regulatory Question
+            </Link>
+            <div>
+              <input
+                type="file"
+                id="audit-upload"
+                accept=".csv, .json, .xml"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  if (e.target.files[0]) {
+                    handleFileUpload(e.target.files[0]);
+                  }
+                }}
+              />
+              <button
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '8px 16px',
+                  backgroundColor: TOKENS.verified,
+                  color: '#fff',
+                  fontFamily: FONT_MONO,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  borderRadius: 4,
+                  border: `1px solid ${TOKENS.line}`,
+                  transition: 'background-color 0.2s ease'
+                }}
+                onMouseEnter={(e) => { e.target.style.backgroundColor = '#4e8c5a'; }}
+                onMouseLeave={(e) => { e.target.style.backgroundColor = TOKENS.verified; }}
+                onClick={() => fileInputRef.current.click()}
+              >
+                Upload Audit File
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M7 2V9" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                  <path d="M4 6H10" stroke="white" strokeWidth="2" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* Upload status messages */}
+      {uploadStatus === 'loading' && (
+        <div style={{ padding: '12px', backgroundColor: TOKENS.paperRaised, borderRadius: 4, marginBottom: 16 }}>
+          Uploading audit file...
+        </div>
+      )}
+      {uploadStatus === 'success' && (
+        <div style={{ padding: '12px', backgroundColor: TOKENS.verifiedBg, border: `1px solid ${TOKENS.verified}`, borderRadius: 4, marginBottom: 16 }}>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 16, marginBottom: 4, color: TOKENS.verified }}>
+            Audit file uploaded successfully!
+          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: TOKENS.inkMuted }}>
+            Transaction ledger has been updated.
+          </div>
+        </div>
+      )}
+      {uploadStatus === 'error' && (
+        <div style={{ padding: '12px', backgroundColor: TOKENS.sealBg, border: `1px solid ${TOKENS.seal}`, borderRadius: 4, marginBottom: 16 }}>
+          <div style={{ fontFamily: FONT_DISPLAY, fontSize: 16, marginBottom: 4, color: TOKENS.seal }}>
+            Upload Error
+          </div>
+          <div style={{ fontFamily: FONT_MONO, fontSize: 13, color: TOKENS.inkMuted }}>
+            {uploadError}
+          </div>
+        </div>
+      )}
 
         {/* Table container */}
         <div

@@ -32,12 +32,32 @@ const navItems = [
 ];
 
 const App = () => {
+  const [windowWidth, setWindowWidth] = React.useState(window.innerWidth);
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Responsive breakpoints
+  const isDesktop = windowWidth >= 1024;
+  const isTablet = windowWidth >= 640 && windowWidth < 1024;
+  const isMobile = windowWidth < 640;
+
+  // Sidebar width based on screen size
+  const sidebarWidth = isDesktop ? 260 : isTablet ? 200 : sidebarCollapsed ? 60 : 200;
+  const sidebarPadding = isDesktop ? '24px 20px' : isTablet ? '20px 16px' : '16px 12px';
+  const mainPadding = isDesktop ? '32px' : isTablet ? '24px' : '16px';
+  const mainBottomPadding = isDesktop ? '60px' : isTablet ? '40px' : '24px';
+
   return (
     <Router>
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '260px minmax(0, 1fr)',
+          gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)`,
           minHeight: '100vh',
           backgroundColor: TOKENS.paper,
           fontFamily: FONT_BODY,
@@ -53,29 +73,55 @@ const App = () => {
             display: 'flex',
             flexDirection: 'column',
             height: '100vh',
-            padding: '24px 20px',
+            padding: sidebarPadding,
             overflowY: 'auto',
             backgroundColor: TOKENS.paperRaised,
-            borderRight: `1px solid ${TOKENS.line}`
+            borderRight: `1px solid ${TOKENS.line}`,
+            width: `${sidebarWidth}px`,
+            flexShrink: 0
           }}
           className="sidebar"
         >
+          {/* Mobile hamburger button */}
+          {isMobile && (
+            <div
+              style={{
+                position: 'fixed',
+                top: '16px',
+                left: '16px',
+                zIndex: 1000,
+                backgroundColor: TOKENS.verified,
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '8px 12px',
+                fontSize: '20px',
+                cursor: 'pointer'
+              }}
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              title="Toggle navigation"
+            >
+              &#9776;
+            </div>
+          )}
+
           {/* Brand */}
           <NavLink
             to="/"
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 12,
+              gap: isMobile ? 8 : 12,
               padding: '16px 0',
-              textDecoration: 'none'
+              textDecoration: 'none',
+              width: '100%'
             }}
             className="brand"
           >
             <span
               style={{
-                width: 36,
-                height: 36,
+                width: isMobile ? 28 : 36,
+                height: isMobile ? 28 : 36,
                 borderRadius: 6,
                 background: `linear-gradient(135deg, ${TOKENS.seal}, #8f4342)`,
                 display: 'flex',
@@ -83,129 +129,145 @@ const App = () => {
                 justifyContent: 'center',
                 color: '#fff',
                 fontWeight: 600,
-                fontSize: 18
+                fontSize: isMobile ? 14 : 18
               }}
               className="brand-mark"
             >
               A
             </span>
-            <div>
-              <span
-                style={{
-                  display: 'block',
-                  fontSize: 18,
-                  fontWeight: 600,
-                  color: TOKENS.ink
-                }}
-                className="brand-title"
-              >
-                AuditOS
-              </span>
-              <span
-                style={{
-                  display: 'block',
-                  fontSize: 12,
-                  color: TOKENS.inkMuted,
-                  marginTop: 2
-                }}
-                className="brand-tagline"
-              >
-                Control Center
-              </span>
-            </div>
+            {!isMobile && (
+              <div>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 18,
+                    fontWeight: 600,
+                    color: TOKENS.ink
+                  }}
+                  className="brand-title"
+                >
+                  AuditOS
+                </span>
+                <span
+                  style={{
+                    display: 'block',
+                    fontSize: 12,
+                    color: TOKENS.inkMuted,
+                    marginTop: 2
+                  }}
+                  className="brand-tagline"
+                >
+                  Control Center
+                </span>
+              </div>
+            )}
           </NavLink>
 
-          {/* Navigation */}
-          <nav
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              marginTop: 'auto'
-            }}
-            className="nav-list"
-            aria-label="Primary"
-          >
-            {navItems.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === '/'}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '12px 16px',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: TOKENS.inkMuted,
-                  textDecoration: 'none',
-                  transition: 'all 0.2s ease'
-                }}
-                className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
-                onMouseEnter={(e) => {
-                  if (!e.currentTarget.classList.contains('active')) {
-                    e.target.style.backgroundColor = TOKENS.paper;
-                    e.target.style.color = TOKENS.ink;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!e.currentTarget.classList.contains('active')) {
-                    e.target.style.backgroundColor = 'transparent';
-                    e.target.style.color = TOKENS.inkMuted;
-                  }
-                }}
-              >
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-
-          {/* Status indicator */}
-          <div
-            style={{
-              marginTop: 'auto',
-              padding: '20px',
-              borderTop: `1px solid ${TOKENS.line}`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              fontSize: 14
-            }}
-            className="sidebar-status"
-          >
-            <span
+          {/* Navigation links - show text on desktop/tablet, icons on mobile */}
+          {(!isMobile || !sidebarCollapsed) && (
+            <nav
               style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor: TOKENS.verified,
-                boxShadow: `0 0 0 2px rgba(63, 107, 79, 0.2)`
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                marginTop: 'auto'
               }}
-              className="status-dot"
-            />
-            <div>
-              <strong
+              className="nav-list"
+              aria-label="Primary"
+            >
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.to === '/'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: isMobile ? 8 : 10,
+                    padding: isMobile ? '10px 12px' : '12px 16px',
+                    borderRadius: 6,
+                    fontSize: isMobile ? 12 : 14,
+                    fontWeight: 500,
+                    color: TOKENS.inkMuted,
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease',
+                    width: '100%'
+                  }}
+                  className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+                  onMouseEnter={(e) => {
+                    if (!e.currentTarget.classList.contains('active') && !isMobile) {
+                      e.target.style.backgroundColor = TOKENS.paper;
+                      e.target.style.color = TOKENS.ink;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!e.currentTarget.classList.contains('active') && !isMobile) {
+                      e.target.style.backgroundColor = 'transparent';
+                      e.target.style.color = TOKENS.inkMuted;
+                    }
+                  }}
+                >
+                  {isMobile ? (
+                    <>
+                      {item.to === '/' && <span>🏠</span>}
+                      {item.to === '/transactions' && <span>💳</span>}
+                      {item.to === '/ask-regs' && <span>❓</span>}
+                      {item.to === '/coverage' && <span>📊</span>}
+                    </>
+                  ) : (
+                    <span>{item.label}</span>
+                  )}
+                </NavLink>
+              ))}
+            </nav>
+          )}
+
+          {/* Status indicator (hidden on mobile when collapsed) */}
+          {(isDesktop || isTablet || !sidebarCollapsed) && (
+            <div
+              style={{
+                marginTop: 'auto',
+                padding: '20px',
+                borderTop: `1px solid ${TOKENS.line}`,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                fontSize: 14
+              }}
+              className="sidebar-status"
+            >
+              <span
                 style={{
-                  display: 'block',
-                  fontSize: 14,
-                  color: TOKENS.ink
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: TOKENS.verified,
+                  boxShadow: `0 0 0 2px rgba(63, 107, 79, 0.2)`
                 }}
-              >
-                Live Monitoring
-              </strong>
-              <small
-                style={{
-                  display: 'block',
-                  fontSize: 12,
-                  color: TOKENS.inkMuted
-                }}
-              >
-                4 services online
-              </small>
+                className="status-dot"
+              />
+              <div>
+                <strong
+                  style={{
+                    display: 'block',
+                    fontSize: 14,
+                    color: TOKENS.ink
+                  }}
+                >
+                  Live Monitoring
+                </strong>
+                <small
+                  style={{
+                    display: 'block',
+                    fontSize: 12,
+                    color: TOKENS.inkMuted
+                  }}
+                >
+                  4 services online
+                </small>
+              </div>
             </div>
-          </div>
+          )}
         </aside>
 
         {/* Main content area */}
@@ -214,10 +276,11 @@ const App = () => {
             width: '100%',
             maxWidth: '1600px',
             margin: '0 auto',
-            padding: '32px',
+            padding: mainPadding,
             animation: 'fadeInUp 500ms ease-out forwards',
             opacity: 0,
-            transform: 'translateY(16px)'
+            transform: 'translateY(16px)',
+            paddingBottom: mainBottomPadding
           }}
           className="main-shell"
         >
