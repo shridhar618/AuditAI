@@ -117,3 +117,5 @@ paysim_sample.csv
 .claude/projects/*
 .claude/worktrees/*
 claude-test.txt
+# Editor backups
+*.backup
