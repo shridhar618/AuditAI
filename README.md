@@ -1,5 +1,7 @@
 # AuditAI
 
+![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white) ![React](https://img.shields.io/badge/React-20232A?logo=react&logoColor=white) ![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?logo=qdrant&logoColor=white) ![Ollama](https://img.shields.io/badge/Ollama-000000?logo=ollama&logoColor=white)
+
 An AI-powered audit assistant that checks financial transactions against regulations. It combines deterministic control rules, ML anomaly detection and a retrieval-augmented (RAG) regulation agent, with a React review dashboard.
 
 ## How it works
@@ -40,6 +42,18 @@ docker compose up --build
 ```
 
 This starts PostgreSQL, Qdrant, the backend and the frontend. The RAG agent also needs an [Ollama](https://ollama.com) server running locally (default port `11434`). Set `OLLAMA_MODEL` to choose the model.
+
+## Environment variables
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `QDRANT_HOST` | Qdrant host | `localhost` |
+| `QDRANT_PORT` | Qdrant port | `6333` |
+| `QDRANT_COLLECTION` | Qdrant collection holding the regulation embeddings | `regulation` |
+| `OLLAMA_HOST` | URL of the Ollama server | `http://localhost:11434` |
+| `OLLAMA_MODEL` | Ollama model used to answer regulation questions | `phi3:mini` in `graph.py`, `llama3` in `rag_agent.py` |
+| `RAG_TOP_K` | Number of regulation passages retrieved per question | `1` |
+| `VITE_API_TARGET` | Backend URL the Vite dev server proxies to | see `vite.config.js` |
 
 ## Evaluation
 
